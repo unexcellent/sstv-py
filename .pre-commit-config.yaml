@@ -1,0 +1,48 @@
+default_install_hook_types: [commit-msg, pre-commit]
+default_stages: [pre-commit, pre-merge-commit]
+minimum_pre_commit_version: 3.2.0
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: destroyed-symlinks
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5
+    hooks:
+      - id: ruff-format
+        name: Run Formatter
+      - id: ruff
+        name: Run Linter
+        args: [--fix]
+
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.80
+    hooks:
+      - id: ty
+        name: Run Type Checker
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run Unit Tests
+        stages: [pre-commit]
+        types: [python]
+        entry: ./.venv/bin/pytest
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -1,0 +1,56 @@
+from typing import Sequence, Union
+
+import numpy as np
+import numpy.typing as npt
+import PIL.Image
+
+_Samples = Union[
+    npt.NDArray[np.int16],
+    npt.NDArray[np.float32],
+    npt.NDArray[np.float64],
+    Sequence[int],
+]
+
+class Mode:
+    """An SSTV transmission mode."""
+
+    AUTO: Mode
+    SCOTTIE_1: Mode
+    SCOTTIE_2: Mode
+    SCOTTIE_DX: Mode
+    MARTIN_1: Mode
+    MARTIN_2: Mode
+    ROBOT_36: Mode
+    ROBOT_72: Mode
+    WRASSE_SC2_180: Mode
+    PASOKON_P3: Mode
+    PASOKON_P5: Mode
+    PASOKON_P7: Mode
+    PD_50: Mode
+    PD_90: Mode
+    PD_120: Mode
+    PD_160: Mode
+    PD_180: Mode
+    PD_240: Mode
+    PD_290: Mode
+
+    @property
+    def image_width(self) -> int:
+        """The horizontal resolution in pixels; raises ValueError for AUTO."""
+
+    @property
+    def image_height(self) -> int:
+        """The vertical resolution in pixels; raises ValueError for AUTO."""
+
+def decode(
+    samples: _Samples,
+    sample_rate: int,
+    *,
+    mode: Mode = ...,
+    header: bool = True,
+) -> list[PIL.Image.Image]:
+    """Decode every SSTV image contained in a stream of audio samples.
+
+    Decode metadata is stored in each image's ``info`` dict under the
+    ``sstv_mode`` (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
+    """

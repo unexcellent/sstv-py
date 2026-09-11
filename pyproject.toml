@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "sstv"
+description = "Decode slow-scan television (SSTV) transmissions"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.21", "Pillow>=9"]
+keywords = ["sstv", "ham-radio", "amateur-radio", "decoding"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Communications :: Ham Radio",
+    "License :: OSI Approved :: MIT License",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "PySSTV>=0.5"]
+
+[project.urls]
+Repository = "https://github.com/unexcellent/sstv"
+
+[tool.maturin]
+python-source = "python"
+module-name = "sstv._sstv"
