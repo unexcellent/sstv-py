@@ -20,7 +20,7 @@ classifiers = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "PySSTV>=0.5"]
+dev = ["pytest>=8", "PySSTV>=0.5", "lameenc>=1.8"]
 
 [project.urls]
 Repository = "https://github.com/unexcellent/sstv"

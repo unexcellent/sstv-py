@@ -13,3 +13,6 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.26", features = ["extension-module", "abi3-py39"] }
 numpy = "0.26"
 sstv = { version = "0.1.2", features = ["wav"] }
+# Depended on directly instead of via the sstv crate's `mp3` feature, which
+# would also pull in the LAME encoder this package does not need.
+minimp3 = "0.5.1"

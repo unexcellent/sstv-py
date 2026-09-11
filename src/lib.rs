@@ -299,25 +299,29 @@ fn run_decoder<I: Iterator<Item = i16>>(decoder: sstv::Decoder<I>, header: bool)
     decoder.images().map(Decoded::from).collect()
 }
 
-/// Read the accepted WAV argument types into raw bytes.
-fn wav_to_bytes(wav: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
-    if let Ok(bytes) = wav.cast::<PyBytes>() {
+/// Read an argument accepted as audio data — a path, bytes, or a binary
+/// file-like object — into raw bytes. `name` is the parameter name used in
+/// error messages.
+fn audio_to_bytes(audio: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<u8>> {
+    if let Ok(bytes) = audio.cast::<PyBytes>() {
         return Ok(bytes.as_bytes().to_vec());
     }
-    if let Ok(bytes) = wav.cast::<PyByteArray>() {
+    if let Ok(bytes) = audio.cast::<PyByteArray>() {
         return Ok(bytes.to_vec());
     }
-    if let Ok(path) = wav.extract::<std::path::PathBuf>() {
+    if let Ok(path) = audio.extract::<std::path::PathBuf>() {
         return Ok(std::fs::read(path)?);
     }
-    if let Ok(read) = wav.getattr("read") {
+    if let Ok(read) = audio.getattr("read") {
         return read.call0()?.extract().map_err(|_| {
-            PyTypeError::new_err("wav.read() must return bytes; open the file in binary mode")
+            PyTypeError::new_err(format!(
+                "{name}.read() must return bytes; open the file in binary mode"
+            ))
         });
     }
-    Err(PyTypeError::new_err(
-        "wav must be a path, bytes, or a binary file-like object",
-    ))
+    Err(PyTypeError::new_err(format!(
+        "{name} must be a path, bytes, or a binary file-like object",
+    )))
 }
 
 /// Decode every SSTV image contained in a WAV recording.
@@ -362,7 +366,7 @@ fn decode_wav<'py>(
     mode: Mode,
     header: bool,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    let wav = wav_to_bytes(wav)?;
+    let wav = audio_to_bytes(wav, "wav")?;
     let mode = sstv::Mode::from(mode);
 
     let decoded = py.detach(move || {
@@ -373,10 +377,86 @@ fn decode_wav<'py>(
     decoded.into_iter().map(|image| image.into_pil(py)).collect()
 }
 
+/// Decode every SSTV image contained in an MP3 recording.
+///
+/// The sample rate is read from the MP3 frames. Only the first channel of
+/// multi-channel audio is used.
+///
+/// Args:
+///     mp3: The recording as a path (``str`` or ``os.PathLike``), in-memory
+///         MP3 data (``bytes`` or ``bytearray``), or a binary file-like
+///         object with a ``read()`` method.
+///     mode: The transmission's mode. With ``Mode.AUTO`` (the default), each
+///         image's mode is detected from the VIS code in its header.
+///     header: If ``False``, assume the samples begin directly at the first
+///         scanline and skip searching for a header. Use this when the signal
+///         carries no detectable header. ``Mode.AUTO`` cannot be detected
+///         without a header and decodes as ``Mode.ROBOT_36``.
+///
+/// Returns:
+///     One RGB ``PIL.Image`` per image found, in order of appearance, with
+///     the decode metadata in each image's ``info`` dict — exactly as
+///     described for ``decode``.
+///
+/// Raises:
+///     TypeError: If ``mp3`` is not an accepted type.
+///     ValueError: If the data contains no decodable MP3 frames.
+///     OSError: If ``mp3`` is a path that cannot be read.
+///
+/// Example:
+///     >>> import sstv
+///     >>> images = sstv.decode_mp3("recording.mp3")
+///     >>> [img.info["sstv_mode"] for img in images]
+///     [Mode.ROBOT_36]
+#[pyfunction]
+#[pyo3(signature = (mp3, *, mode = Mode::AUTO, header = true))]
+fn decode_mp3<'py>(
+    py: Python<'py>,
+    mp3: &Bound<'py, PyAny>,
+    mode: Mode,
+    header: bool,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let mp3 = audio_to_bytes(mp3, "mp3")?;
+    let mode = sstv::Mode::from(mode);
+
+    // This mirrors the sstv crate's `Decoder::from_mp3`, kept local so the
+    // crate's `mp3` feature (and with it the LAME encoder) stays out of the
+    // dependency tree.
+    let decoded = py.detach(move || -> PyResult<Vec<Decoded>> {
+        let mut frames = minimp3::Decoder::new(std::io::Cursor::new(mp3));
+        let mut samples: Vec<i16> = Vec::new();
+        let mut sample_rate = 0u32;
+        loop {
+            match frames.next_frame() {
+                Ok(frame) => {
+                    sample_rate = frame.sample_rate as u32;
+                    let channels = frame.channels.max(1);
+                    samples.extend(frame.data.iter().step_by(channels));
+                }
+                Err(minimp3::Error::Eof) => break,
+                Err(error) => {
+                    return Err(PyValueError::new_err(format!("malformed MP3 data: {error}")));
+                }
+            }
+        }
+        if sample_rate == 0 {
+            return Err(PyValueError::new_err(
+                "no MP3 frames found; is this an MP3 recording?",
+            ));
+        }
+        Ok(run_decoder(
+            sstv::Decoder::from_samples(mode, samples.into_iter(), sample_rate),
+            header,
+        ))
+    })?;
+    decoded.into_iter().map(|image| image.into_pil(py)).collect()
+}
+
 #[pymodule]
 fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mode>()?;
     m.add_function(wrap_pyfunction!(decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_wav, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_mp3, m)?)?;
     Ok(())
 }

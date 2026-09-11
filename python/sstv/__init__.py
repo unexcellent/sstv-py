@@ -1,8 +1,9 @@
 """Decode slow-scan television (SSTV) transmissions.
 
 This package wraps the Rust `sstv <https://crates.io/crates/sstv>`_ crate.
-:func:`decode_wav` takes a WAV recording and returns every SSTV image found
-in it as a Pillow image; :func:`decode` does the same for raw audio samples::
+:func:`decode_wav` and :func:`decode_mp3` take a recording and return every
+SSTV image found in it as a Pillow image; :func:`decode` does the same for
+raw audio samples::
 
     import sstv
 
@@ -18,6 +19,6 @@ Pasokon P3/P5/P7, and PD 50-290 (see :class:`Mode`). By default the mode is
 detected automatically from each transmission's VIS header.
 """
 
-from sstv._sstv import Mode, decode, decode_wav
+from sstv._sstv import Mode, decode, decode_mp3, decode_wav
 
-__all__ = ["Mode", "decode", "decode_wav"]
+__all__ = ["Mode", "decode", "decode_mp3", "decode_wav"]

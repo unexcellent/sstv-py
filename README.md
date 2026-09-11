@@ -18,7 +18,8 @@ for image in sstv.decode_wav("recording.wav"):
 It accepts a path, in-memory WAV data (`bytes`), or a binary file-like
 object. The sample rate is read from the WAV header, only the first channel
 of multi-channel audio is used, and integer samples of any bit depth as
-well as float samples are converted to 16 bit.
+well as float samples are converted to 16 bit. `sstv.decode_mp3()` works
+the same way for MP3 recordings.
 
 For audio from other sources, `sstv.decode()` takes raw samples as a
 one-dimensional numpy array — `int16`, or `float32`/`float64` in
@@ -42,7 +43,7 @@ images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36)
 images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36, header=False)
 ```
 
-Both keyword arguments work the same on `decode_wav()`.
+Both keyword arguments work the same on `decode_wav()` and `decode_mp3()`.
 
 Decode metadata is stored in each image's `info` dict:
 

@@ -12,7 +12,7 @@ _Samples = Union[
     Sequence[int],
 ]
 
-_Wav = Union[str, os.PathLike[str], bytes, bytearray, BinaryIO]
+_Recording = Union[str, os.PathLike[str], bytes, bytearray, BinaryIO]
 
 class Mode:
     """An SSTV transmission mode."""
@@ -59,7 +59,7 @@ def decode(
     """
 
 def decode_wav(
-    wav: _Wav,
+    wav: _Recording,
     *,
     mode: Mode = ...,
     header: bool = True,
@@ -67,6 +67,19 @@ def decode_wav(
     """Decode every SSTV image contained in a WAV recording.
 
     Accepts a path, in-memory WAV data, or a binary file-like object. Decode
+    metadata is stored in each image's ``info`` dict under the ``sstv_mode``
+    (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
+    """
+
+def decode_mp3(
+    mp3: _Recording,
+    *,
+    mode: Mode = ...,
+    header: bool = True,
+) -> list[PIL.Image.Image]:
+    """Decode every SSTV image contained in an MP3 recording.
+
+    Accepts a path, in-memory MP3 data, or a binary file-like object. Decode
     metadata is stored in each image's ``info`` dict under the ``sstv_mode``
     (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
     """
