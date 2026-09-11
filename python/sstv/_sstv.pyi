@@ -1,4 +1,5 @@
-from typing import Sequence, Union
+import os
+from typing import BinaryIO, Sequence, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -10,6 +11,8 @@ _Samples = Union[
     npt.NDArray[np.float64],
     Sequence[int],
 ]
+
+_Wav = Union[str, os.PathLike[str], bytes, bytearray, BinaryIO]
 
 class Mode:
     """An SSTV transmission mode."""
@@ -53,4 +56,17 @@ def decode(
 
     Decode metadata is stored in each image's ``info`` dict under the
     ``sstv_mode`` (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
+    """
+
+def decode_wav(
+    wav: _Wav,
+    *,
+    mode: Mode = ...,
+    header: bool = True,
+) -> list[PIL.Image.Image]:
+    """Decode every SSTV image contained in a WAV recording.
+
+    Accepts a path, in-memory WAV data, or a binary file-like object. Decode
+    metadata is stored in each image's ``info`` dict under the ``sstv_mode``
+    (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
     """

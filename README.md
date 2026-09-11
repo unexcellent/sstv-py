@@ -5,21 +5,31 @@ wraps the Rust [`sstv`](https://crates.io/crates/sstv) crate.
 
 ## Usage
 
-`sstv.decode()` takes raw audio samples and returns every SSTV image found
-in them as a Pillow image:
+`sstv.decode_wav()` takes a WAV recording and returns every SSTV image
+found in it as a Pillow image:
 
 ```python
 import sstv
-import soundfile
 
-samples, sample_rate = soundfile.read("recording.wav")
-for image in sstv.decode(samples, sample_rate):
+for image in sstv.decode_wav("recording.wav"):
     image.save("decoded.png")
 ```
 
-Samples are a one-dimensional numpy array: `int16`, or `float32`/`float64`
-in `[-1.0, 1.0]`. For multi-channel audio pass a single channel, e.g.
-`samples[:, 0]`.
+It accepts a path, in-memory WAV data (`bytes`), or a binary file-like
+object. The sample rate is read from the WAV header, only the first channel
+of multi-channel audio is used, and integer samples of any bit depth as
+well as float samples are converted to 16 bit.
+
+For audio from other sources, `sstv.decode()` takes raw samples as a
+one-dimensional numpy array — `int16`, or `float32`/`float64` in
+`[-1.0, 1.0]` — plus the sample rate:
+
+```python
+import soundfile
+
+samples, sample_rate = soundfile.read("recording.flac")
+images = sstv.decode(samples[:, 0], sample_rate)
+```
 
 By default the mode of each transmission is detected from the VIS code in
 its header. Both can be overridden:
@@ -31,6 +41,8 @@ images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36)
 # The recording starts directly at the first scanline (no header)
 images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36, header=False)
 ```
+
+Both keyword arguments work the same on `decode_wav()`.
 
 Decode metadata is stored in each image's `info` dict:
 

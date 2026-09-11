@@ -3,7 +3,7 @@
 use numpy::{PyReadonlyArray1, PyUntypedArray, PyUntypedArrayMethods};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyByteArray, PyBytes};
 
 /// An SSTV transmission mode.
 ///
@@ -285,13 +285,91 @@ fn decode<'py>(
     let mode = sstv::Mode::from(mode);
 
     // Decoding minutes of audio is CPU-bound; let other Python threads run.
-    let decoded: Vec<Decoded> = py.detach(move || {
-        let mut decoder = sstv::Decoder::from_samples(mode, samples.into_iter(), sample_rate);
-        if !header {
-            decoder = decoder.without_header();
-        }
-        decoder.images().map(Decoded::from).collect()
+    let decoded = py.detach(move || {
+        run_decoder(
+            sstv::Decoder::from_samples(mode, samples.into_iter(), sample_rate),
+            header,
+        )
     });
+    decoded.into_iter().map(|image| image.into_pil(py)).collect()
+}
+
+fn run_decoder<I: Iterator<Item = i16>>(decoder: sstv::Decoder<I>, header: bool) -> Vec<Decoded> {
+    let decoder = if header { decoder } else { decoder.without_header() };
+    decoder.images().map(Decoded::from).collect()
+}
+
+/// Read the accepted WAV argument types into raw bytes.
+fn wav_to_bytes(wav: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    if let Ok(bytes) = wav.cast::<PyBytes>() {
+        return Ok(bytes.as_bytes().to_vec());
+    }
+    if let Ok(bytes) = wav.cast::<PyByteArray>() {
+        return Ok(bytes.to_vec());
+    }
+    if let Ok(path) = wav.extract::<std::path::PathBuf>() {
+        return Ok(std::fs::read(path)?);
+    }
+    if let Ok(read) = wav.getattr("read") {
+        return read.call0()?.extract().map_err(|_| {
+            PyTypeError::new_err("wav.read() must return bytes; open the file in binary mode")
+        });
+    }
+    Err(PyTypeError::new_err(
+        "wav must be a path, bytes, or a binary file-like object",
+    ))
+}
+
+/// Decode every SSTV image contained in a WAV recording.
+///
+/// The sample rate is read from the WAV header. Only the first channel of
+/// multi-channel audio is used; integer samples of any bit depth and float
+/// samples are converted to 16 bit. Data cut short relative to the length
+/// declared in the header — common in recordings whose writer was
+/// interrupted — is decoded up to the cut.
+///
+/// Args:
+///     wav: The recording as a path (``str`` or ``os.PathLike``), in-memory
+///         WAV data (``bytes`` or ``bytearray``), or a binary file-like
+///         object with a ``read()`` method.
+///     mode: The transmission's mode. With ``Mode.AUTO`` (the default), each
+///         image's mode is detected from the VIS code in its header.
+///     header: If ``False``, assume the samples begin directly at the first
+///         scanline and skip searching for a header. Use this when the signal
+///         carries no detectable header. ``Mode.AUTO`` cannot be detected
+///         without a header and decodes as ``Mode.ROBOT_36``.
+///
+/// Returns:
+///     One RGB ``PIL.Image`` per image found, in order of appearance, with
+///     the decode metadata in each image's ``info`` dict — exactly as
+///     described for ``decode``.
+///
+/// Raises:
+///     TypeError: If ``wav`` is not an accepted type.
+///     ValueError: If the WAV data is malformed.
+///     OSError: If ``wav`` is a path that cannot be read.
+///
+/// Example:
+///     >>> import sstv
+///     >>> images = sstv.decode_wav("recording.wav")
+///     >>> [img.info["sstv_mode"] for img in images]
+///     [Mode.ROBOT_36]
+#[pyfunction]
+#[pyo3(signature = (wav, *, mode = Mode::AUTO, header = true))]
+fn decode_wav<'py>(
+    py: Python<'py>,
+    wav: &Bound<'py, PyAny>,
+    mode: Mode,
+    header: bool,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let wav = wav_to_bytes(wav)?;
+    let mode = sstv::Mode::from(mode);
+
+    let decoded = py.detach(move || {
+        sstv::Decoder::from_wav(mode, &wav)
+            .map(|decoder| run_decoder(decoder, header))
+            .map_err(|error| PyValueError::new_err(format!("malformed WAV data: {error}")))
+    })?;
     decoded.into_iter().map(|image| image.into_pil(py)).collect()
 }
 
@@ -299,5 +377,6 @@ fn decode<'py>(
 fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mode>()?;
     m.add_function(wrap_pyfunction!(decode, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_wav, m)?)?;
     Ok(())
 }
