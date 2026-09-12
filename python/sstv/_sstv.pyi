@@ -17,7 +17,6 @@ _Recording = Union[str, os.PathLike[str], bytes, bytearray, BinaryIO]
 class Mode:
     """An SSTV transmission mode."""
 
-    AUTO: Mode
     SCOTTIE_1: Mode
     SCOTTIE_2: Mode
     SCOTTIE_DX: Mode
@@ -39,17 +38,17 @@ class Mode:
 
     @property
     def image_width(self) -> int:
-        """The horizontal resolution in pixels; raises ValueError for AUTO."""
+        """The horizontal resolution in pixels."""
 
     @property
     def image_height(self) -> int:
-        """The vertical resolution in pixels; raises ValueError for AUTO."""
+        """The vertical resolution in pixels."""
 
 def decode(
     samples: _Samples,
     sample_rate: int,
     *,
-    mode: Mode = ...,
+    mode: Mode | None = None,
     header: bool = True,
 ) -> list[PIL.Image.Image]:
     """Decode every SSTV image contained in a stream of audio samples.
@@ -61,7 +60,7 @@ def decode(
 def decode_wav(
     wav: _Recording,
     *,
-    mode: Mode = ...,
+    mode: Mode | None = None,
     header: bool = True,
 ) -> list[PIL.Image.Image]:
     """Decode every SSTV image contained in a WAV recording.
@@ -74,7 +73,7 @@ def decode_wav(
 def decode_mp3(
     mp3: _Recording,
     *,
-    mode: Mode = ...,
+    mode: Mode | None = None,
     header: bool = True,
 ) -> list[PIL.Image.Image]:
     """Decode every SSTV image contained in an MP3 recording.

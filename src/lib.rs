@@ -8,17 +8,15 @@ use pyo3::types::{PyByteArray, PyBytes};
 /// An SSTV transmission mode.
 ///
 /// Pass a specific mode to `decode` when the transmission is known (or its
-/// header is missing), or `Mode.AUTO` to detect each image's mode from the
-/// VIS code in its header.
+/// header is missing); with the default of ``None``, each image's mode is
+/// detected from the VIS code in its header.
 ///
 /// The `image_width` and `image_height` properties give the fixed resolution
 /// of every image transmitted in that mode.
 #[pyclass(frozen, eq, hash)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
+#[allow(non_camel_case_types)]
 pub enum Mode {
-    /// Detect the mode from the transmission's header.
-    AUTO,
     /// A 320x256 colour image in a 110 second transmission.
     SCOTTIE_1,
     /// A 320x256 colour image in a 71 second transmission.
@@ -60,7 +58,6 @@ pub enum Mode {
 impl From<Mode> for sstv::Mode {
     fn from(mode: Mode) -> Self {
         match mode {
-            Mode::AUTO => Self::Auto,
             Mode::SCOTTIE_1 => Self::Scottie1,
             Mode::SCOTTIE_2 => Self::Scottie2,
             Mode::SCOTTIE_DX => Self::ScottieDx,
@@ -86,7 +83,6 @@ impl From<Mode> for sstv::Mode {
 impl From<sstv::Mode> for Mode {
     fn from(mode: sstv::Mode) -> Self {
         match mode {
-            sstv::Mode::Auto => Self::AUTO,
             sstv::Mode::Scottie1 => Self::SCOTTIE_1,
             sstv::Mode::Scottie2 => Self::SCOTTIE_2,
             sstv::Mode::ScottieDx => Self::SCOTTIE_DX,
@@ -105,9 +101,10 @@ impl From<sstv::Mode> for Mode {
             sstv::Mode::Pd180 => Self::PD_180,
             sstv::Mode::Pd240 => Self::PD_240,
             sstv::Mode::Pd290 => Self::PD_290,
-            // `sstv::Mode` is non-exhaustive; modes added to the crate before
-            // a binding exists here fall back to AUTO.
-            _ => Self::AUTO,
+            // `sstv::Mode` is non-exhaustive, and decoded images never carry
+            // `Auto`; the crate detects `Auto` as `Robot36`, so modes added
+            // to the crate before a binding exists here fall back to that.
+            sstv::Mode::Auto | _ => Self::ROBOT_36,
         }
     }
 }
@@ -115,29 +112,15 @@ impl From<sstv::Mode> for Mode {
 #[pymethods]
 impl Mode {
     /// The horizontal resolution in pixels of images transmitted in this mode.
-    ///
-    /// Raises `ValueError` for `Mode.AUTO`, which has no fixed resolution.
     #[getter]
-    fn image_width(&self) -> PyResult<u32> {
-        if matches!(self, Self::AUTO) {
-            return Err(PyValueError::new_err(
-                "Mode.AUTO has no fixed resolution; the mode is detected per image while decoding",
-            ));
-        }
-        Ok(sstv::Mode::from(*self).image_width())
+    fn image_width(&self) -> u32 {
+        sstv::Mode::from(*self).image_width()
     }
 
     /// The vertical resolution in pixels of images transmitted in this mode.
-    ///
-    /// Raises `ValueError` for `Mode.AUTO`, which has no fixed resolution.
     #[getter]
-    fn image_height(&self) -> PyResult<u32> {
-        if matches!(self, Self::AUTO) {
-            return Err(PyValueError::new_err(
-                "Mode.AUTO has no fixed resolution; the mode is detected per image while decoding",
-            ));
-        }
-        Ok(sstv::Mode::from(*self).image_height())
+    fn image_height(&self) -> u32 {
+        sstv::Mode::from(*self).image_height()
     }
 }
 
@@ -234,12 +217,12 @@ fn samples_to_vec(samples: &Bound<'_, PyAny>) -> PyResult<Vec<i16>> {
 ///         accepted. Multi-channel audio must be reduced to one channel
 ///         first, e.g. ``samples[:, 0]``.
 ///     sample_rate: The sample rate in Hz, greater than zero.
-///     mode: The transmission's mode. With ``Mode.AUTO`` (the default), each
+///     mode: The transmission's mode. With ``None`` (the default), each
 ///         image's mode is detected from the VIS code in its header.
 ///     header: If ``False``, assume the samples begin directly at the first
 ///         scanline and skip searching for a header. Use this when the signal
-///         carries no detectable header. ``Mode.AUTO`` cannot be detected
-///         without a header and decodes as ``Mode.ROBOT_36``.
+///         carries no detectable header. The mode cannot be detected without
+///         a header; if ``mode`` is ``None``, ``Mode.ROBOT_36`` is assumed.
 ///
 /// Returns:
 ///     One RGB ``PIL.Image`` per image found, in order of appearance. Audio
@@ -250,7 +233,7 @@ fn samples_to_vec(samples: &Bound<'_, PyAny>) -> PyResult<Vec<i16>> {
 ///     Decode metadata is stored in each image's ``info`` dict:
 ///
 ///     - ``info["sstv_mode"]``: the ``Mode`` the image was transmitted in
-///       (useful with ``Mode.AUTO`` to learn what was detected).
+///       (useful with ``mode=None`` to learn what was detected).
 ///     - ``info["sstv_complete"]``: ``False`` if the signal ended before the
 ///       image's last scanline; the rows the signal did not carry are black.
 ///
@@ -270,19 +253,19 @@ fn samples_to_vec(samples: &Bound<'_, PyAny>) -> PyResult<Vec<i16>> {
 ///     >>> images[0].size
 ///     (320, 240)
 #[pyfunction]
-#[pyo3(signature = (samples, sample_rate, *, mode = Mode::AUTO, header = true))]
+#[pyo3(signature = (samples, sample_rate, *, mode = None, header = true))]
 fn decode<'py>(
     py: Python<'py>,
     samples: &Bound<'py, PyAny>,
     sample_rate: u32,
-    mode: Mode,
+    mode: Option<Mode>,
     header: bool,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
     if sample_rate == 0 {
         return Err(PyValueError::new_err("sample_rate must be greater than zero"));
     }
     let samples = samples_to_vec(samples)?;
-    let mode = sstv::Mode::from(mode);
+    let mode = mode.map_or(sstv::Mode::Auto, sstv::Mode::from);
 
     // Decoding minutes of audio is CPU-bound; let other Python threads run.
     let decoded = py.detach(move || {
@@ -336,12 +319,12 @@ fn audio_to_bytes(audio: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<u8>> {
 ///     wav: The recording as a path (``str`` or ``os.PathLike``), in-memory
 ///         WAV data (``bytes`` or ``bytearray``), or a binary file-like
 ///         object with a ``read()`` method.
-///     mode: The transmission's mode. With ``Mode.AUTO`` (the default), each
+///     mode: The transmission's mode. With ``None`` (the default), each
 ///         image's mode is detected from the VIS code in its header.
 ///     header: If ``False``, assume the samples begin directly at the first
 ///         scanline and skip searching for a header. Use this when the signal
-///         carries no detectable header. ``Mode.AUTO`` cannot be detected
-///         without a header and decodes as ``Mode.ROBOT_36``.
+///         carries no detectable header. The mode cannot be detected without
+///         a header; if ``mode`` is ``None``, ``Mode.ROBOT_36`` is assumed.
 ///
 /// Returns:
 ///     One RGB ``PIL.Image`` per image found, in order of appearance, with
@@ -359,15 +342,15 @@ fn audio_to_bytes(audio: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<u8>> {
 ///     >>> [img.info["sstv_mode"] for img in images]
 ///     [Mode.ROBOT_36]
 #[pyfunction]
-#[pyo3(signature = (wav, *, mode = Mode::AUTO, header = true))]
+#[pyo3(signature = (wav, *, mode = None, header = true))]
 fn decode_wav<'py>(
     py: Python<'py>,
     wav: &Bound<'py, PyAny>,
-    mode: Mode,
+    mode: Option<Mode>,
     header: bool,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
     let wav = audio_to_bytes(wav, "wav")?;
-    let mode = sstv::Mode::from(mode);
+    let mode = mode.map_or(sstv::Mode::Auto, sstv::Mode::from);
 
     let decoded = py.detach(move || {
         sstv::Decoder::from_wav(mode, &wav)
@@ -386,12 +369,12 @@ fn decode_wav<'py>(
 ///     mp3: The recording as a path (``str`` or ``os.PathLike``), in-memory
 ///         MP3 data (``bytes`` or ``bytearray``), or a binary file-like
 ///         object with a ``read()`` method.
-///     mode: The transmission's mode. With ``Mode.AUTO`` (the default), each
+///     mode: The transmission's mode. With ``None`` (the default), each
 ///         image's mode is detected from the VIS code in its header.
 ///     header: If ``False``, assume the samples begin directly at the first
 ///         scanline and skip searching for a header. Use this when the signal
-///         carries no detectable header. ``Mode.AUTO`` cannot be detected
-///         without a header and decodes as ``Mode.ROBOT_36``.
+///         carries no detectable header. The mode cannot be detected without
+///         a header; if ``mode`` is ``None``, ``Mode.ROBOT_36`` is assumed.
 ///
 /// Returns:
 ///     One RGB ``PIL.Image`` per image found, in order of appearance, with
@@ -409,15 +392,15 @@ fn decode_wav<'py>(
 ///     >>> [img.info["sstv_mode"] for img in images]
 ///     [Mode.ROBOT_36]
 #[pyfunction]
-#[pyo3(signature = (mp3, *, mode = Mode::AUTO, header = true))]
+#[pyo3(signature = (mp3, *, mode = None, header = true))]
 fn decode_mp3<'py>(
     py: Python<'py>,
     mp3: &Bound<'py, PyAny>,
-    mode: Mode,
+    mode: Option<Mode>,
     header: bool,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
     let mp3 = audio_to_bytes(mp3, "mp3")?;
-    let mode = sstv::Mode::from(mode);
+    let mode = mode.map_or(sstv::Mode::Auto, sstv::Mode::from);
 
     // This mirrors the sstv crate's `Decoder::from_mp3`, kept local so the
     // crate's `mp3` feature (and with it the LAME encoder) stays out of the

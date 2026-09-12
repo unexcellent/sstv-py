@@ -336,14 +336,7 @@ def test_mode_dimensions():
     assert sstv.Mode.PD_290.image_height == 616
 
 
-def test_auto_mode_has_no_dimensions():
-    with pytest.raises(ValueError, match="AUTO"):
-        sstv.Mode.AUTO.image_width
-    with pytest.raises(ValueError, match="AUTO"):
-        sstv.Mode.AUTO.image_height
-
-
 def test_mode_equality_and_hash():
     assert sstv.Mode.ROBOT_36 == sstv.Mode.ROBOT_36
     assert sstv.Mode.ROBOT_36 != sstv.Mode.ROBOT_72
-    assert len({sstv.Mode.ROBOT_36, sstv.Mode.ROBOT_36, sstv.Mode.AUTO}) == 2
+    assert len({sstv.Mode.ROBOT_36, sstv.Mode.ROBOT_36, sstv.Mode.MARTIN_1}) == 2
