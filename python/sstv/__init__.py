@@ -3,17 +3,18 @@
 This package wraps the Rust `sstv <https://crates.io/crates/sstv>`_ crate.
 :func:`decode_from_wav` and :func:`decode_from_mp3` take a recording and return every
 SSTV image found in it as a Pillow image; :func:`decode` does the same for
-raw audio samples. :func:`encode` is the inverse, turning an image into the
-samples of a transmission::
+raw audio samples. :func:`encode` and :func:`encode_to_wav` are the
+inverse, turning an image into a transmission::
 
     import sstv
+    from pathlib import Path
     from PIL import Image
 
     for image in sstv.decode_from_wav("recording.wav"):
         image.save("decoded.png")
 
     photo = Image.open("photo.png").resize((320, 240))
-    samples = sstv.encode(photo, sstv.Mode.ROBOT_36)
+    Path("out.wav").write_bytes(sstv.encode_to_wav(photo, sstv.Mode.ROBOT_36))
 
 Decode metadata is stored in each image's ``info`` dict: ``sstv_mode`` holds
 the :class:`Mode` the image was transmitted in, and ``sstv_complete`` is
@@ -24,6 +25,20 @@ Pasokon P3/P5/P7, and PD 50-290 (see :class:`Mode`). By default the mode is
 detected automatically from each transmission's VIS header when decoding.
 """
 
-from sstv._sstv import Mode, decode, decode_from_mp3, decode_from_wav, encode
+from sstv._sstv import (
+    Mode,
+    decode,
+    decode_from_mp3,
+    decode_from_wav,
+    encode,
+    encode_to_wav,
+)
 
-__all__ = ["Mode", "decode", "decode_from_mp3", "decode_from_wav", "encode"]
+__all__ = [
+    "Mode",
+    "decode",
+    "decode_from_mp3",
+    "decode_from_wav",
+    "encode",
+    "encode_to_wav",
+]

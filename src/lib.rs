@@ -527,22 +527,79 @@ fn encode<'py>(
     mode: Mode,
     sample_rate: u32,
 ) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
+    let samples: Vec<i16> = py.detach(move || {
+        sstv::Synthesizer::new(new_encoder(mode, pixels), sample_rate).collect()
+    });
+    Ok(PyArray1::from_vec(py, samples))
+}
+
+/// Encode an image into a complete WAV file of an SSTV transmission.
+///
+/// The transmission includes the calibration header carrying the mode's VIS
+/// code, so the result decodes with ``decode_from_wav(data)`` without
+/// specifying the mode.
+///
+/// Args:
+///     image: The image to transmit, as a ``PIL.Image`` (converted to RGB
+///         internally) or a ``(height, width, 3)`` uint8 numpy array of RGB
+///         values. The dimensions must match the mode's resolution exactly;
+///         resize beforehand with
+///         ``image.resize((mode.image_width, mode.image_height))``.
+///     mode: The SSTV mode to transmit in.
+///     sample_rate: The sample rate of the produced audio in Hz, greater
+///         than zero.
+///
+/// Returns:
+///     The transmission as mono 16-bit PCM WAV data, ready to be written to
+///     a file.
+///
+/// Raises:
+///     TypeError: If ``image`` is not an accepted type.
+///     ValueError: If the image dimensions do not match the mode's
+///         resolution, or ``sample_rate`` is zero.
+///
+/// Example:
+///     >>> import sstv
+///     >>> from pathlib import Path
+///     >>> from PIL import Image
+///     >>> image = Image.open("photo.png").resize((320, 240))
+///     >>> Path("out.wav").write_bytes(sstv.encode_to_wav(image, sstv.Mode.ROBOT_36))
+#[pyfunction]
+#[pyo3(signature = (image, mode, sample_rate = 48_000))]
+fn encode_to_wav<'py>(
+    py: Python<'py>,
+    image: &Bound<'py, PyAny>,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
+    let wav = py.detach(move || new_encoder(mode, pixels).to_wav(sample_rate));
+    Ok(PyBytes::new(py, &wav))
+}
+
+/// The shared front half of `encode` and `encode_to_wav`: validate the
+/// inputs and read the image into pixels.
+fn validate_encode_args(
+    image: &Bound<'_, PyAny>,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<(sstv::Mode, Vec<sstv::RgbPixel>)> {
     if sample_rate == 0 {
         return Err(PyValueError::new_err("sample_rate must be greater than zero"));
     }
     let mode = sstv::Mode::from(mode);
     let pixels = pixels_from_image(image, mode)?;
+    Ok((mode, pixels))
+}
 
-    // The crate's `Encoder` is not `Send`, so it must be built inside detach.
-    let samples: Vec<i16> = py.detach(move || {
-        // expect: `pixels_from_image` guarantees a full image of pixels, so
-        // the encoder's only error, `EmptyImage`, cannot occur.
-        #[allow(clippy::expect_used)]
-        let encoder = sstv::Encoder::new(mode, pixels.into_iter())
-            .expect("a dimension-checked image is never empty");
-        sstv::Synthesizer::new(encoder, sample_rate).collect()
-    });
-    Ok(PyArray1::from_vec(py, samples))
+/// Construct the crate's encoder. Separate from `validate_encode_args`
+/// because `Encoder` is not `Send` and must be built inside `Python::detach`.
+fn new_encoder(mode: sstv::Mode, pixels: Vec<sstv::RgbPixel>) -> sstv::Encoder {
+    // expect: `pixels_from_image` guarantees a full image of pixels, so the
+    // encoder's only error, `EmptyImage`, cannot occur.
+    #[allow(clippy::expect_used)]
+    sstv::Encoder::new(mode, pixels.into_iter()).expect("a dimension-checked image is never empty")
 }
 
 #[pymodule]
@@ -552,5 +609,6 @@ fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_from_wav, m)?)?;
     m.add_function(wrap_pyfunction!(decode_from_mp3, m)?)?;
     m.add_function(wrap_pyfunction!(encode, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_to_wav, m)?)?;
     Ok(())
 }

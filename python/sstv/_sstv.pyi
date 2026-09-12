@@ -94,3 +94,13 @@ def encode(
 
     The image dimensions must match the mode's resolution exactly.
     """
+
+def encode_to_wav(
+    image: _Image,
+    mode: Mode,
+    sample_rate: int = 48000,
+) -> bytes:
+    """Encode an image into a complete WAV file of an SSTV transmission.
+
+    The image dimensions must match the mode's resolution exactly.
+    """
