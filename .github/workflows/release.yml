@@ -27,7 +27,7 @@ jobs:
         platform:
           - { runner: ubuntu-latest, target: x86_64, artifact: linux-x86_64 }
           - { runner: ubuntu-24.04-arm, target: aarch64, artifact: linux-aarch64 }
-          - { runner: macos-13, target: x86_64, artifact: macos-x86_64 }
+          - { runner: macos-15-intel, target: x86_64, artifact: macos-x86_64 }
           - { runner: macos-latest, target: aarch64, artifact: macos-aarch64 }
           - { runner: windows-latest, target: x64, artifact: windows-x64 }
     steps:
@@ -68,7 +68,7 @@ jobs:
         platform:
           - { runner: ubuntu-latest, artifact: linux-x86_64 }
           - { runner: ubuntu-24.04-arm, artifact: linux-aarch64 }
-          - { runner: macos-13, artifact: macos-x86_64 }
+          - { runner: macos-15-intel, artifact: macos-x86_64 }
           - { runner: macos-latest, artifact: macos-aarch64 }
           - { runner: windows-latest, artifact: windows-x64 }
     steps:
