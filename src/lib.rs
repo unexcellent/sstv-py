@@ -338,12 +338,12 @@ fn audio_to_bytes(audio: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<u8>> {
 ///
 /// Example:
 ///     >>> import sstv
-///     >>> images = sstv.decode_wav("recording.wav")
+///     >>> images = sstv.decode_from_wav("recording.wav")
 ///     >>> [img.info["sstv_mode"] for img in images]
 ///     [Mode.ROBOT_36]
 #[pyfunction]
 #[pyo3(signature = (wav, *, mode = None, header = true))]
-fn decode_wav<'py>(
+fn decode_from_wav<'py>(
     py: Python<'py>,
     wav: &Bound<'py, PyAny>,
     mode: Option<Mode>,
@@ -388,12 +388,12 @@ fn decode_wav<'py>(
 ///
 /// Example:
 ///     >>> import sstv
-///     >>> images = sstv.decode_mp3("recording.mp3")
+///     >>> images = sstv.decode_from_mp3("recording.mp3")
 ///     >>> [img.info["sstv_mode"] for img in images]
 ///     [Mode.ROBOT_36]
 #[pyfunction]
 #[pyo3(signature = (mp3, *, mode = None, header = true))]
-fn decode_mp3<'py>(
+fn decode_from_mp3<'py>(
     py: Python<'py>,
     mp3: &Bound<'py, PyAny>,
     mode: Option<Mode>,
@@ -549,8 +549,8 @@ fn encode<'py>(
 fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mode>()?;
     m.add_function(wrap_pyfunction!(decode, m)?)?;
-    m.add_function(wrap_pyfunction!(decode_wav, m)?)?;
-    m.add_function(wrap_pyfunction!(decode_mp3, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_from_wav, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_from_mp3, m)?)?;
     m.add_function(wrap_pyfunction!(encode, m)?)?;
     Ok(())
 }

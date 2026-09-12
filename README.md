@@ -5,20 +5,20 @@ package wraps the Rust [`sstv`](https://crates.io/crates/sstv) crate.
 
 ## Usage
 
-`sstv.decode_wav()` takes a WAV recording and returns every SSTV image
+`sstv.decode_from_wav()` takes a WAV recording and returns every SSTV image
 found in it as a Pillow image:
 
 ```python
 import sstv
 
-for image in sstv.decode_wav("recording.wav"):
+for image in sstv.decode_from_wav("recording.wav"):
     image.save("decoded.png")
 ```
 
 It accepts a path, in-memory WAV data (`bytes`), or a binary file-like
 object. The sample rate is read from the WAV header, only the first channel
 of multi-channel audio is used, and integer samples of any bit depth as
-well as float samples are converted to 16 bit. `sstv.decode_mp3()` works
+well as float samples are converted to 16 bit. `sstv.decode_from_mp3()` works
 the same way for MP3 recordings.
 
 For audio from other sources, `sstv.decode()` takes raw samples as a
@@ -43,7 +43,7 @@ images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36)
 images = sstv.decode(samples, sample_rate, mode=sstv.Mode.ROBOT_36, header=False)
 ```
 
-Both keyword arguments work the same on `decode_wav()` and `decode_mp3()`.
+Both keyword arguments work the same on `decode_from_wav()` and `decode_from_mp3()`.
 
 Decode metadata is stored in each image's `info` dict:
 

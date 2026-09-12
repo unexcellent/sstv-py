@@ -59,7 +59,7 @@ def decode(
     ``sstv_mode`` (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
     """
 
-def decode_wav(
+def decode_from_wav(
     wav: _Recording,
     *,
     mode: Mode | None = None,
@@ -72,7 +72,7 @@ def decode_wav(
     (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
     """
 
-def decode_mp3(
+def decode_from_mp3(
     mp3: _Recording,
     *,
     mode: Mode | None = None,
