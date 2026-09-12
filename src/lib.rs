@@ -578,6 +578,64 @@ fn encode_to_wav<'py>(
     Ok(PyBytes::new(py, &wav))
 }
 
+/// Encode an image into a complete MP3 file of an SSTV transmission.
+///
+/// The transmission includes the calibration header carrying the mode's VIS
+/// code, so the result decodes with ``decode_from_mp3(data)`` without
+/// specifying the mode.
+///
+/// Args:
+///     image: The image to transmit, as a ``PIL.Image`` (converted to RGB
+///         internally) or a ``(height, width, 3)`` uint8 numpy array of RGB
+///         values. The dimensions must match the mode's resolution exactly;
+///         resize beforehand with
+///         ``image.resize((mode.image_width, mode.image_height))``.
+///     mode: The SSTV mode to transmit in.
+///     sample_rate: The sample rate of the produced audio in Hz. Must be one
+///         of the rates MP3 supports: 8000, 11025, 12000, 16000, 22050,
+///         24000, 32000, 44100, or 48000.
+///
+/// Returns:
+///     The transmission as mono 128 kbit/s MP3 data, ready to be written to
+///     a file.
+///
+/// Raises:
+///     TypeError: If ``image`` is not an accepted type.
+///     ValueError: If the image dimensions do not match the mode's
+///         resolution, or the sample rate is not supported by MP3.
+///
+/// Example:
+///     >>> import sstv
+///     >>> from pathlib import Path
+///     >>> from PIL import Image
+///     >>> image = Image.open("photo.png").resize((320, 240))
+///     >>> Path("out.mp3").write_bytes(sstv.encode_to_mp3(image, sstv.Mode.ROBOT_36))
+#[pyfunction]
+#[pyo3(signature = (image, mode, sample_rate = 48_000))]
+fn encode_to_mp3<'py>(
+    py: Python<'py>,
+    image: &Bound<'py, PyAny>,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<Bound<'py, PyBytes>> {
+    // LAME accepts other rates and resamples, which breaks the crate's
+    // output buffer sizing; only pass through the rates MP3 itself carries.
+    const MP3_SAMPLE_RATES: [u32; 9] = [
+        8_000, 11_025, 12_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000,
+    ];
+    if !MP3_SAMPLE_RATES.contains(&sample_rate) {
+        return Err(PyValueError::new_err(format!(
+            "sample_rate {sample_rate} is not supported by MP3; \
+             use one of {MP3_SAMPLE_RATES:?}"
+        )));
+    }
+    let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
+    let mp3 = py
+        .detach(move || new_encoder(mode, pixels).to_mp3(sample_rate))
+        .map_err(|error| PyValueError::new_err(format!("MP3 encoding failed: {error:?}")))?;
+    Ok(PyBytes::new(py, &mp3))
+}
+
 /// Encode an image into an SSTV transmission and write it to a WAV file.
 ///
 /// The convenience twin of ``encode_to_wav``: identical output, written to
@@ -656,5 +714,6 @@ fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode, m)?)?;
     m.add_function(wrap_pyfunction!(encode_to_wav, m)?)?;
     m.add_function(wrap_pyfunction!(encode_to_wav_file, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_to_mp3, m)?)?;
     Ok(())
 }

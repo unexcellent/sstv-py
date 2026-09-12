@@ -12,7 +12,8 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.26", features = ["extension-module", "abi3-py39"] }
 numpy = "0.26"
-sstv = { version = "0.1.2", features = ["wav"] }
-# Depended on directly instead of via the sstv crate's `mp3` feature, which
-# would also pull in the LAME encoder this package does not need.
+sstv = { version = "0.1.2", features = ["wav", "mp3"] }
+# MP3 decoding uses minimp3 directly instead of the sstv crate's
+# `Decoder::from_mp3`, so data without any MP3 frames can raise a helpful
+# error instead of silently yielding no images.
 minimp3 = "0.5.1"

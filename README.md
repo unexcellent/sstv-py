@@ -72,6 +72,10 @@ data = sstv.encode_to_wav(photo, sstv.Mode.ROBOT_36)
 samples = sstv.encode(photo, sstv.Mode.ROBOT_36, sample_rate=44_100)
 ```
 
+`sstv.encode_to_mp3()` returns the transmission as mono 128 kbit/s MP3
+data; its sample rate must be one MP3 supports (8000-48000, see the
+docstring).
+
 The image can be a `PIL.Image` (converted to RGB internally) or a
 `(height, width, 3)` uint8 numpy array, and its dimensions must match the
 mode's resolution — resize with

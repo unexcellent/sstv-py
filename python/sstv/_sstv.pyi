@@ -105,6 +105,17 @@ def encode_to_wav(
     The image dimensions must match the mode's resolution exactly.
     """
 
+def encode_to_mp3(
+    image: _Image,
+    mode: Mode,
+    sample_rate: int = 48000,
+) -> bytes:
+    """Encode an image into a complete MP3 file of an SSTV transmission.
+
+    The image dimensions must match the mode's resolution exactly, and the
+    sample rate must be one supported by MP3.
+    """
+
 def encode_to_wav_file(
     image: _Image,
     path: str | os.PathLike[str],

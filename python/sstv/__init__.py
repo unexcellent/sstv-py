@@ -3,9 +3,9 @@
 This package wraps the Rust `sstv <https://crates.io/crates/sstv>`_ crate.
 :func:`decode_from_wav` and :func:`decode_from_mp3` take a recording and return every
 SSTV image found in it as a Pillow image; :func:`decode` does the same for
-raw audio samples. :func:`encode`, :func:`encode_to_wav`, and
-:func:`encode_to_wav_file` are the inverse, turning an image into a
-transmission::
+raw audio samples. :func:`encode`, :func:`encode_to_wav`,
+:func:`encode_to_wav_file`, and :func:`encode_to_mp3` are the inverse,
+turning an image into a transmission::
 
     import sstv
     from PIL import Image
@@ -31,6 +31,7 @@ from sstv._sstv import (
     decode_from_mp3,
     decode_from_wav,
     encode,
+    encode_to_mp3,
     encode_to_wav,
     encode_to_wav_file,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "decode_from_mp3",
     "decode_from_wav",
     "encode",
+    "encode_to_mp3",
     "encode_to_wav",
     "encode_to_wav_file",
 ]
