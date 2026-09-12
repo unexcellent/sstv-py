@@ -618,17 +618,7 @@ fn encode_to_mp3<'py>(
     mode: Mode,
     sample_rate: u32,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    // LAME accepts other rates and resamples, which breaks the crate's
-    // output buffer sizing; only pass through the rates MP3 itself carries.
-    const MP3_SAMPLE_RATES: [u32; 9] = [
-        8_000, 11_025, 12_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000,
-    ];
-    if !MP3_SAMPLE_RATES.contains(&sample_rate) {
-        return Err(PyValueError::new_err(format!(
-            "sample_rate {sample_rate} is not supported by MP3; \
-             use one of {MP3_SAMPLE_RATES:?}"
-        )));
-    }
+    validate_mp3_sample_rate(sample_rate)?;
     let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
     let mp3 = py
         .detach(move || new_encoder(mode, pixels).to_mp3(sample_rate))
@@ -681,6 +671,71 @@ fn encode_to_wav_file(
     Ok(())
 }
 
+/// Encode an image into an SSTV transmission and write it to an MP3 file.
+///
+/// The convenience twin of ``encode_to_mp3``: identical output, written to
+/// ``path`` instead of returned.
+///
+/// Args:
+///     image: The image to transmit, as a ``PIL.Image`` (converted to RGB
+///         internally) or a ``(height, width, 3)`` uint8 numpy array of RGB
+///         values. The dimensions must match the mode's resolution exactly;
+///         resize beforehand with
+///         ``image.resize((mode.image_width, mode.image_height))``.
+///     path: Where to write the MP3 file, as a ``str`` or ``os.PathLike``.
+///         An existing file is overwritten.
+///     mode: The SSTV mode to transmit in.
+///     sample_rate: The sample rate of the produced audio in Hz. Must be one
+///         of the rates MP3 supports: 8000, 11025, 12000, 16000, 22050,
+///         24000, 32000, 44100, or 48000.
+///
+/// Raises:
+///     TypeError: If ``image`` is not an accepted type.
+///     ValueError: If the image dimensions do not match the mode's
+///         resolution, or the sample rate is not supported by MP3.
+///     OSError: If ``path`` cannot be written.
+///
+/// Example:
+///     >>> import sstv
+///     >>> from PIL import Image
+///     >>> image = Image.open("photo.png").resize((320, 240))
+///     >>> sstv.encode_to_mp3_file(image, "out.mp3", sstv.Mode.ROBOT_36)
+#[pyfunction]
+#[pyo3(signature = (image, path, mode, sample_rate = 48_000))]
+fn encode_to_mp3_file(
+    py: Python<'_>,
+    image: &Bound<'_, PyAny>,
+    path: std::path::PathBuf,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<()> {
+    validate_mp3_sample_rate(sample_rate)?;
+    let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
+    py.detach(move || {
+        let mp3 = new_encoder(mode, pixels)
+            .to_mp3(sample_rate)
+            .map_err(|error| PyValueError::new_err(format!("MP3 encoding failed: {error:?}")))?;
+        std::fs::write(path, mp3).map_err(PyErr::from)
+    })?;
+    Ok(())
+}
+
+/// Reject sample rates the MP3 format does not carry. LAME accepts other
+/// rates and resamples, which breaks the sstv crate's output buffer sizing.
+fn validate_mp3_sample_rate(sample_rate: u32) -> PyResult<()> {
+    const MP3_SAMPLE_RATES: [u32; 9] = [
+        8_000, 11_025, 12_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000,
+    ];
+    if MP3_SAMPLE_RATES.contains(&sample_rate) {
+        Ok(())
+    } else {
+        Err(PyValueError::new_err(format!(
+            "sample_rate {sample_rate} is not supported by MP3; \
+             use one of {MP3_SAMPLE_RATES:?}"
+        )))
+    }
+}
+
 /// The shared front half of the encoding functions: validate the inputs and
 /// read the image into pixels.
 fn validate_encode_args(
@@ -715,5 +770,6 @@ fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_to_wav, m)?)?;
     m.add_function(wrap_pyfunction!(encode_to_wav_file, m)?)?;
     m.add_function(wrap_pyfunction!(encode_to_mp3, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_to_mp3_file, m)?)?;
     Ok(())
 }

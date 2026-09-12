@@ -116,6 +116,18 @@ def encode_to_mp3(
     sample rate must be one supported by MP3.
     """
 
+def encode_to_mp3_file(
+    image: _Image,
+    path: str | os.PathLike[str],
+    mode: Mode,
+    sample_rate: int = 48000,
+) -> None:
+    """Encode an image into an SSTV transmission and write it to an MP3 file.
+
+    The image dimensions must match the mode's resolution exactly, and the
+    sample rate must be one supported by MP3.
+    """
+
 def encode_to_wav_file(
     image: _Image,
     path: str | os.PathLike[str],
