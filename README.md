@@ -58,17 +58,17 @@ Note that Pillow does not carry `info` through operations like `crop` or
 
 ### Encoding
 
-`sstv.encode_to_wav()` turns an image into a complete WAV file;
-`sstv.encode()` returns the raw int16 samples instead, e.g. for feeding an
-audio device:
+`sstv.encode_to_wav_file()` turns an image into a WAV file;
+`sstv.encode_to_wav()` returns the WAV data as `bytes` instead, and
+`sstv.encode()` the raw int16 samples, e.g. for feeding an audio device:
 
 ```python
-from pathlib import Path
 from PIL import Image
 
 photo = Image.open("photo.png").resize((320, 240))
-Path("out.wav").write_bytes(sstv.encode_to_wav(photo, sstv.Mode.ROBOT_36))
+sstv.encode_to_wav_file(photo, "out.wav", sstv.Mode.ROBOT_36)
 
+data = sstv.encode_to_wav(photo, sstv.Mode.ROBOT_36)
 samples = sstv.encode(photo, sstv.Mode.ROBOT_36, sample_rate=44_100)
 ```
 

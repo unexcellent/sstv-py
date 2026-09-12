@@ -1,4 +1,4 @@
-"""Tests for sstv.encode() and sstv.encode_to_wav().
+"""Tests for the encoding functions.
 
 Encoding is tested by round-tripping through the decoder, which is itself
 validated against PySSTV in the decoding tests.
@@ -6,6 +6,7 @@ validated against PySSTV in the decoding tests.
 
 import io
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -72,6 +73,29 @@ def test_to_wav_wrong_size_raises(image):
     small = Image.fromarray(image).resize((100, 100))
     with pytest.raises(ValueError, match="resize"):
         sstv.encode_to_wav(small, sstv.Mode.ROBOT_36)
+
+
+def test_to_wav_file_round_trip(tmp_path: Path, image):
+    path = tmp_path / "transmission.wav"
+    sstv.encode_to_wav_file(image, path, sstv.Mode.ROBOT_36, sample_rate=22_050)
+    decoded = sstv.decode_from_wav(path)
+    assert len(decoded) == 1
+    assert_matches(decoded[0], image)
+
+
+def test_to_wav_file_matches_to_wav(tmp_path: Path, image):
+    path = tmp_path / "transmission.wav"
+    sstv.encode_to_wav_file(image, str(path), sstv.Mode.ROBOT_36, sample_rate=22_050)
+    assert path.read_bytes() == sstv.encode_to_wav(
+        image, sstv.Mode.ROBOT_36, sample_rate=22_050
+    )
+
+
+def test_to_wav_file_unwritable_path_raises(tmp_path: Path, image):
+    with pytest.raises(OSError):
+        sstv.encode_to_wav_file(
+            image, tmp_path / "missing-dir" / "out.wav", sstv.Mode.ROBOT_36
+        )
 
 
 def test_wrong_pil_size_raises(image):

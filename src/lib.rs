@@ -578,8 +578,53 @@ fn encode_to_wav<'py>(
     Ok(PyBytes::new(py, &wav))
 }
 
-/// The shared front half of `encode` and `encode_to_wav`: validate the
-/// inputs and read the image into pixels.
+/// Encode an image into an SSTV transmission and write it to a WAV file.
+///
+/// The convenience twin of ``encode_to_wav``: identical output, written to
+/// ``path`` instead of returned.
+///
+/// Args:
+///     image: The image to transmit, as a ``PIL.Image`` (converted to RGB
+///         internally) or a ``(height, width, 3)`` uint8 numpy array of RGB
+///         values. The dimensions must match the mode's resolution exactly;
+///         resize beforehand with
+///         ``image.resize((mode.image_width, mode.image_height))``.
+///     path: Where to write the WAV file, as a ``str`` or ``os.PathLike``.
+///         An existing file is overwritten.
+///     mode: The SSTV mode to transmit in.
+///     sample_rate: The sample rate of the produced audio in Hz, greater
+///         than zero.
+///
+/// Raises:
+///     TypeError: If ``image`` is not an accepted type.
+///     ValueError: If the image dimensions do not match the mode's
+///         resolution, or ``sample_rate`` is zero.
+///     OSError: If ``path`` cannot be written.
+///
+/// Example:
+///     >>> import sstv
+///     >>> from PIL import Image
+///     >>> image = Image.open("photo.png").resize((320, 240))
+///     >>> sstv.encode_to_wav_file(image, "out.wav", sstv.Mode.ROBOT_36)
+#[pyfunction]
+#[pyo3(signature = (image, path, mode, sample_rate = 48_000))]
+fn encode_to_wav_file(
+    py: Python<'_>,
+    image: &Bound<'_, PyAny>,
+    path: std::path::PathBuf,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<()> {
+    let (mode, pixels) = validate_encode_args(image, mode, sample_rate)?;
+    py.detach(move || {
+        let wav = new_encoder(mode, pixels).to_wav(sample_rate);
+        std::fs::write(path, wav)
+    })?;
+    Ok(())
+}
+
+/// The shared front half of the encoding functions: validate the inputs and
+/// read the image into pixels.
 fn validate_encode_args(
     image: &Bound<'_, PyAny>,
     mode: Mode,
@@ -610,5 +655,6 @@ fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_from_mp3, m)?)?;
     m.add_function(wrap_pyfunction!(encode, m)?)?;
     m.add_function(wrap_pyfunction!(encode_to_wav, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_to_wav_file, m)?)?;
     Ok(())
 }

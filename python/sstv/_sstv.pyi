@@ -104,3 +104,14 @@ def encode_to_wav(
 
     The image dimensions must match the mode's resolution exactly.
     """
+
+def encode_to_wav_file(
+    image: _Image,
+    path: str | os.PathLike[str],
+    mode: Mode,
+    sample_rate: int = 48000,
+) -> None:
+    """Encode an image into an SSTV transmission and write it to a WAV file.
+
+    The image dimensions must match the mode's resolution exactly.
+    """
