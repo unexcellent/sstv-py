@@ -14,6 +14,8 @@ _Samples = Union[
 
 _Recording = Union[str, os.PathLike[str], bytes, bytearray, BinaryIO]
 
+_Image = Union[PIL.Image.Image, npt.NDArray[np.uint8]]
+
 class Mode:
     """An SSTV transmission mode."""
 
@@ -81,4 +83,14 @@ def decode_mp3(
     Accepts a path, in-memory MP3 data, or a binary file-like object. Decode
     metadata is stored in each image's ``info`` dict under the ``sstv_mode``
     (a ``Mode``) and ``sstv_complete`` (a ``bool``) keys.
+    """
+
+def encode(
+    image: _Image,
+    mode: Mode,
+    sample_rate: int = 48000,
+) -> npt.NDArray[np.int16]:
+    """Encode an image into the raw audio samples of an SSTV transmission.
+
+    The image dimensions must match the mode's resolution exactly.
     """

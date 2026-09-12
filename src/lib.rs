@@ -1,6 +1,6 @@
 //! Python bindings for the `sstv` crate's decoder.
 
-use numpy::{PyReadonlyArray1, PyUntypedArray, PyUntypedArrayMethods};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray3, PyUntypedArray, PyUntypedArrayMethods};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes};
@@ -435,11 +435,122 @@ fn decode_mp3<'py>(
     decoded.into_iter().map(|image| image.into_pil(py)).collect()
 }
 
+/// Read the accepted image argument types — a PIL image or a
+/// `(height, width, 3)` uint8 numpy array — into pixels, validating the
+/// dimensions against the mode's resolution.
+fn pixels_from_image(
+    image: &Bound<'_, PyAny>,
+    mode: sstv::Mode,
+) -> PyResult<Vec<sstv::RgbPixel>> {
+    let expected = (mode.image_width() as usize, mode.image_height() as usize);
+
+    if image.cast::<PyUntypedArray>().is_ok() {
+        let array = image.extract::<PyReadonlyArray3<u8>>().map_err(|_| {
+            PyTypeError::new_err("image array must be uint8 with shape (height, width, 3)")
+        })?;
+        let shape = array.shape().to_vec();
+        if shape != [expected.1, expected.0, 3] {
+            return Err(PyValueError::new_err(format!(
+                "image shape ({}, {}, {}) does not match the mode's resolution \
+                 ({}, {}, 3)",
+                shape[0], shape[1], shape[2], expected.1, expected.0,
+            )));
+        }
+        let array = array.as_array();
+        return Ok(array
+            .rows()
+            .into_iter()
+            .map(|rgb| sstv::RgbPixel::new(rgb[0], rgb[1], rgb[2]))
+            .collect());
+    }
+
+    let py = image.py();
+    if image.is_instance(&py.import("PIL.Image")?.getattr("Image")?)? {
+        let size: (usize, usize) = image.getattr("size")?.extract()?;
+        if size != expected {
+            return Err(PyValueError::new_err(format!(
+                "image size {}x{} does not match the mode's resolution {}x{}; \
+                 resize with image.resize((mode.image_width, mode.image_height))",
+                size.0, size.1, expected.0, expected.1,
+            )));
+        }
+        let rgb = image.call_method1("convert", ("RGB",))?;
+        let bytes: Vec<u8> = rgb.call_method0("tobytes")?.extract()?;
+        return Ok(bytes
+            .chunks_exact(3)
+            .map(|rgb| sstv::RgbPixel::new(rgb[0], rgb[1], rgb[2]))
+            .collect());
+    }
+
+    Err(PyTypeError::new_err(
+        "image must be a PIL.Image or a (height, width, 3) uint8 numpy array",
+    ))
+}
+
+/// Encode an image into the raw audio samples of an SSTV transmission.
+///
+/// The transmission includes the calibration header carrying the mode's VIS
+/// code, so the result decodes with ``decode(samples, sample_rate)`` without
+/// specifying the mode.
+///
+/// Args:
+///     image: The image to transmit, as a ``PIL.Image`` (converted to RGB
+///         internally) or a ``(height, width, 3)`` uint8 numpy array of RGB
+///         values. The dimensions must match the mode's resolution exactly;
+///         resize beforehand with
+///         ``image.resize((mode.image_width, mode.image_height))``.
+///     mode: The SSTV mode to transmit in.
+///     sample_rate: The sample rate of the produced audio in Hz, greater
+///         than zero.
+///
+/// Returns:
+///     The transmission as a one-dimensional int16 numpy array of PCM
+///     samples, ready for an audio device or further processing.
+///
+/// Raises:
+///     TypeError: If ``image`` is not an accepted type.
+///     ValueError: If the image dimensions do not match the mode's
+///         resolution, or ``sample_rate`` is zero.
+///
+/// Example:
+///     >>> import sstv
+///     >>> from PIL import Image
+///     >>> image = Image.open("photo.png").resize((320, 240))
+///     >>> samples = sstv.encode(image, sstv.Mode.ROBOT_36)
+///     >>> sstv.decode(samples, 48000)[0].info["sstv_mode"]
+///     Mode.ROBOT_36
+#[pyfunction]
+#[pyo3(signature = (image, mode, sample_rate = 48_000))]
+fn encode<'py>(
+    py: Python<'py>,
+    image: &Bound<'py, PyAny>,
+    mode: Mode,
+    sample_rate: u32,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    if sample_rate == 0 {
+        return Err(PyValueError::new_err("sample_rate must be greater than zero"));
+    }
+    let mode = sstv::Mode::from(mode);
+    let pixels = pixels_from_image(image, mode)?;
+
+    // The crate's `Encoder` is not `Send`, so it must be built inside detach.
+    let samples: Vec<i16> = py.detach(move || {
+        // expect: `pixels_from_image` guarantees a full image of pixels, so
+        // the encoder's only error, `EmptyImage`, cannot occur.
+        #[allow(clippy::expect_used)]
+        let encoder = sstv::Encoder::new(mode, pixels.into_iter())
+            .expect("a dimension-checked image is never empty");
+        sstv::Synthesizer::new(encoder, sample_rate).collect()
+    });
+    Ok(PyArray1::from_vec(py, samples))
+}
+
 #[pymodule]
 fn _sstv(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mode>()?;
     m.add_function(wrap_pyfunction!(decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_wav, m)?)?;
     m.add_function(wrap_pyfunction!(decode_mp3, m)?)?;
+    m.add_function(wrap_pyfunction!(encode, m)?)?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 # sstv
 
-Decode slow-scan television (SSTV) transmissions in Python. This package
-wraps the Rust [`sstv`](https://crates.io/crates/sstv) crate.
+Encode and decode slow-scan television (SSTV) transmissions in Python. This
+package wraps the Rust [`sstv`](https://crates.io/crates/sstv) crate.
 
 ## Usage
 
@@ -55,6 +55,24 @@ image.info["sstv_complete"]  # False if the signal cut off mid-image;
 
 Note that Pillow does not carry `info` through operations like `crop` or
 `resize`, so read the metadata before transforming the image.
+
+### Encoding
+
+`sstv.encode()` turns an image into the raw int16 samples of a
+transmission, e.g. for feeding an audio device:
+
+```python
+from PIL import Image
+
+photo = Image.open("photo.png").resize((320, 240))
+samples = sstv.encode(photo, sstv.Mode.ROBOT_36, sample_rate=44_100)
+```
+
+The image can be a `PIL.Image` (converted to RGB internally) or a
+`(height, width, 3)` uint8 numpy array, and its dimensions must match the
+mode's resolution — resize with
+`image.resize((mode.image_width, mode.image_height))`. The transmission
+includes the calibration header, so decoders can detect the mode.
 
 Supported modes: Scottie 1/2/DX, Martin 1/2, Robot 36/72, Wrasse SC2-180,
 Pasokon P3/P5/P7, PD 50/90/120/160/180/240/290.
