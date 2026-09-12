@@ -1,9 +1,17 @@
-# sstv
-
 Encode and decode slow-scan television (SSTV) transmissions in Python. This
 package wraps the Rust [`sstv`](https://crates.io/crates/sstv) crate.
 
-## Usage
+This package aims to be the definitive SSTV library for Python. Please create an issue or a pull request if you find a bug or are missing a feature.
+
+# Installation
+
+```sh
+pip install sstv
+```
+
+# Usage
+
+## Decoding
 
 `sstv.decode_from_wav()` takes a WAV recording and returns every SSTV image
 found in it as a Pillow image:
@@ -56,7 +64,7 @@ image.info["sstv_complete"]  # False if the signal cut off mid-image;
 Note that Pillow does not carry `info` through operations like `crop` or
 `resize`, so read the metadata before transforming the image.
 
-### Encoding
+## Encoding
 
 `sstv.encode_to_wav_file()` turns an image into a WAV file;
 `sstv.encode_to_wav()` returns the WAV data as `bytes` instead, and
@@ -85,13 +93,7 @@ includes the calibration header, so decoders can detect the mode.
 Supported modes: Scottie 1/2/DX, Martin 1/2, Robot 36/72, Wrasse SC2-180,
 Pasokon P3/P5/P7, PD 50/90/120/160/180/240/290.
 
-## Installation
-
-```sh
-pip install sstv
-```
-
-## Development
+# Development
 
 Built with [maturin](https://maturin.rs). To build and test locally:
 
